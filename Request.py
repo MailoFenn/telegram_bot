@@ -12,25 +12,26 @@ class Request:
         self.chat_id = chat_id
 
     async def start(self):
-        response = requests.post(self.url)
-        count_new = response.json()['response']['count']
-        if self.count == 0:
-            self.count = count_new
-            post = response.json()['response']['items'][0]
-            await self.send_new_post(post=post, count=count_new)
-        elif count_new > self.count:
-            for num in range(count_new-self.count):
-                post = response.json()['response']['items'][num]
-                await self.send_new_post(post=post, count=count_new)
-            self.count = count_new
-        time.sleep(5)
+        while True:
+            response = requests.post(self.url)
+            count_new = response.json()['response']['count']
+            if self.count == 0:
+                self.count = count_new
+                post = response.json()['response']['items'][0]
+                await self.send_new_post(post=post)
+            elif count_new > self.count:
+                for num in range(count_new-self.count):
+                    post = response.json()['response']['items'][num]
+                    await self.send_new_post(post=post)
+                self.count = count_new
+            time.sleep(5)
 
-    async def send_new_post(self, post, count):
+    async def send_new_post(self, post):
         photo_quantity = len(post['attachments'])
-        if photo_quantity > 1 and post['attachments'][0]['type'] != 'video':
-            await self.send_photos(post=post, count=count)
+        if photo_quantity > 1 and post['attachments'][0]['type'] == 'photo':
+            await self.send_photos(post=post, photo_quantity=photo_quantity)
             await self.send_text(post=post)
-        elif photo_quantity == 1 and post['attachments'][0]['type'] != 'video':
+        elif photo_quantity == 1 and post['attachments'][0]['type'] == 'photo':
             await self.send_photo(post=post)
         else:
             await self.send_text(post=post)
@@ -49,15 +50,13 @@ class Request:
         await self.bot.send_message(chat_id=self.chat_id,
                                     text=post['text'])
 
-    # TODO fix this bug
-
-    async def send_photos(self, post, count):
+    async def send_photos(self, post, photo_quantity):
         photo_arr = types.MediaGroup()
-        for num in range(count - self.count):
+        for num in range(photo_quantity):
             for photo in post['attachments'][num]['photo']['sizes']:
                 if photo['type'] == 'z':
                     photo_tmp = types.InputMediaPhoto(
                         media=str(photo['url']))
                     photo_arr.attach_photo(photo_tmp)
-            await self.bot.send_media_group(chat_id=self.chat_id,
+        await self.bot.send_media_group(chat_id=self.chat_id,
                                             media=photo_arr)
