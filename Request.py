@@ -1,6 +1,6 @@
 import requests
 from aiogram import types
-import time
+from asyncio import sleep
 
 
 class Request:
@@ -10,21 +10,23 @@ class Request:
         self.url = url
         self.bot = bot
         self.chat_id = chat_id
+        self.count_new = 0
 
     async def start(self):
         while True:
             response = requests.post(self.url)
-            count_new = response.json()['response']['count']
-            if self.count == 0:
-                self.count = count_new
-                post = response.json()['response']['items'][0]
-                await self.send_new_post(post=post)
-            elif count_new > self.count:
-                for num in range(count_new-self.count):
-                    post = response.json()['response']['items'][num]
+            self.count_new = response.json()['response']['count']
+            if self.count_new != self.count:
+                if self.count == 0:
+                    self.count = self.count_new
+                    post = response.json()['response']['items'][0]
                     await self.send_new_post(post=post)
-                self.count = count_new
-            time.sleep(5)
+                elif self.count_new > self.count:
+                    for num in range(self.count_new-self.count):
+                        post = response.json()['response']['items'][num]
+                        await self.send_new_post(post=post)
+                    self.count = self.count_new
+            await sleep(5)
 
     async def send_new_post(self, post):
         photo_quantity = len(post['attachments'])
@@ -53,10 +55,11 @@ class Request:
     async def send_photos(self, post, photo_quantity):
         photo_arr = types.MediaGroup()
         for num in range(photo_quantity):
-            for photo in post['attachments'][num]['photo']['sizes']:
-                if photo['type'] == 'z':
-                    photo_tmp = types.InputMediaPhoto(
-                        media=str(photo['url']))
-                    photo_arr.attach_photo(photo_tmp)
+            if post['attachments'][num]['type'] == 'photo':
+                for photo in post['attachments'][num]['photo']['sizes']:
+                    if photo['type'] == 'z':
+                        photo_tmp = types.InputMediaPhoto(
+                            media=str(photo['url']))
+                        photo_arr.attach_photo(photo_tmp)
         await self.bot.send_media_group(chat_id=self.chat_id,
                                             media=photo_arr)
